@@ -43,3 +43,55 @@ adb devices
 List of devices attached
 awesomedeviceid    device
 ```
+
+# Android Storage Analysis - Phase 2
+
+Standard Android `diskstats` output varies by manufacturer. For MIUI/Xiaomi devices, the output is often unstructured parallel arrays (JSON-like). We developed a custom Python script to parse this data and correlate package names with their data sizes.
+
+### The Script: `audit_apps.py`
+
+This script executes `dumpsys diskstats`, extracts the parallel lists, and generates a ranked table of storage consumers.
+
+**Usage:**
+
+```bash
+python3 audit_apps.py
+```
+
+**Key Metrics:**
+
+* **TOTAL:** The physical space the app occupies.
+* **DATA (BLOAT):** User-generated data (Databases, Downloads, Internal Media). This is the primary target for cleanup.
+* **CACHE:** Temporary files (Safe to clear via Android Settings).
+
+
+Once a heavy app is identified, we use advanced shell commands to inspect its internal structure.
+
+### Checking "Debuggable" Status
+
+If an app has `android:debuggable="true"` in its manifest (or is a development build), we can access its private data (`/data/data/`) without Root privileges using the `run-as` command.
+
+```bash
+adb shell run-as <package_name>
+```
+
+### Internal File Inspection
+
+Inside the `run-as` shell, we identify large files or hidden archives:
+
+```bash
+# Check folder sizes recursively
+du -h -d 1 .
+
+# Find top 10 largest specific files
+find . -type f -printf "%s %p\n" | sort -rn | head -n 10
+```
+
+### Data Extraction
+
+To analyze databases (SQLite) or suspicious archives on the host machine:
+
+```bash
+# Stream the file content directly to the local machine
+adb exec-out run-as <package_name> cat path/to/file > local_filename.ext
+```
