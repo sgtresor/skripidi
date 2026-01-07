@@ -95,3 +95,30 @@ To analyze databases (SQLite) or suspicious archives on the host machine:
 # Stream the file content directly to the local machine
 adb exec-out run-as <package_name> cat path/to/file > local_filename.ext
 ```
+
+## Case Study: MIUI Gallery Cleanup
+
+**Target:** `com.miui.gallery`
+**Initial State:** ~4 GB Usage
+**Root Cause:** Persistent high-res thumbnail cache (`gallery_disk_cache`) that does not expire even after original images are deleted.
+
+### Forensic Analysis
+Since the package is not debuggable, we accessed the public Android Data partition.
+
+**Inspection Script:**
+We used `inspect_gallery.py` (Python wrapper around `adb shell find`) to sort and identify thousands of ~2MB cached preview files.
+
+```bash
+# Location of the bloat
+/sdcard/Android/data/com.miui.gallery/files/gallery_disk_cache
+```
+
+### Remediation
+
+1. **Backup:** Performed a direct `adb pull` of the cache to the host machine for verification.
+2. **Verification:** Confirmed files were expendable thumbnails/previews using batch renaming (`*.0` -> `*.jpg`).
+3. **Execution:** Surgical deletion via ADB shell.
+
+```bash
+adb shell rm -rf /sdcard/Android/data/com.miui.gallery/files/gallery_disk_cache
+```
